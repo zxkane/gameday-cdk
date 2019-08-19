@@ -2,6 +2,8 @@ import cdk = require('@aws-cdk/core');
 import ec2 = require("@aws-cdk/aws-ec2");
 import { SubnetType } from '@aws-cdk/aws-ec2'
 import { SecurityGroup } from '@aws-cdk/aws-ec2'
+import rds = require("@aws-cdk/aws-rds");
+import { RetentionDays } from '@aws-cdk/aws-logs'
 
 export class GamedayCdkStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -65,5 +67,27 @@ export class GamedayCdkStack extends cdk.Stack {
       securityGroupName: "SG3" 
     });
     sg3.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'ssh port', true);
+
+    // create Aurora cluster
+    const masterUser = 'admin'
+    const ec2InstanceType = ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL)
+    const cluster = new rds.DatabaseCluster(this, 'GameCluster', {
+      engine: rds.DatabaseClusterEngine.AURORA_MYSQL,
+      masterUser: {
+          username: masterUser
+      },
+      defaultDatabaseName: 'gameday',
+      instanceProps: {
+          instanceType: ec2InstanceType,
+          vpcSubnets: {
+              subnetType: ec2.SubnetType.PRIVATE,
+          },
+          securityGroup: sg2,
+          vpc
+      },
+      parameterGroup: rds.ParameterGroup.fromParameterGroupName(this, 'mysql5.7', 'default.aurora-mysql5.7'),
+      instances: 2
+    });
+
   }
 }
