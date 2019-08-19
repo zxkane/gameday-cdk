@@ -4,4 +4,7 @@ import cdk = require('@aws-cdk/core');
 import { GamedayCdkStack } from '../lib/gameday-cdk-stack';
 
 const app = new cdk.App();
-new GamedayCdkStack(app, 'GamedayCdkStack');
+const gameStack = new GamedayCdkStack(app, 'GamedayCdkStack');
+
+// Add a tag to all constructs in the stack
+cdk.Tag.add(gameStack, 'usage', 'gameday');
