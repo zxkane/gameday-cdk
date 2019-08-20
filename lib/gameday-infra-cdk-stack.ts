@@ -5,7 +5,7 @@ import { SecurityGroup } from '@aws-cdk/aws-ec2'
 import rds = require("@aws-cdk/aws-rds");
 import { RetentionDays } from '@aws-cdk/aws-logs'
 
-export class GamedayCdkStack extends cdk.Stack {
+export class GamedayInfraCdkStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
