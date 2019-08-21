@@ -8,6 +8,7 @@ import { RetentionDays } from '@aws-cdk/aws-logs'
 export class GamedayInfraCdkStack extends cdk.Stack {
   
   readonly vpc: ec2.IVpc;
+  readonly ecsSG: ec2.ISecurityGroup;
 
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -43,7 +44,7 @@ export class GamedayInfraCdkStack extends cdk.Stack {
     });
     sg0.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Http port', false);
     // SecurityGroup 1 for request from ELB only to tcp port 32769
-    const sg1 = new SecurityGroup(this, "SG1", {
+    const sg1 = this.ecsSG = new SecurityGroup(this, "SG1", {
       vpc: this.vpc,
       allowAllOutbound: true,
       description: "SG_for_backend_server",

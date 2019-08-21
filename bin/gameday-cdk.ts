@@ -7,7 +7,8 @@ import { GamedayECSCdkStack } from '../lib/gameday-ecs-cdk-stack';
 const app = new cdk.App();
 const gameInfraStack = new GamedayInfraCdkStack(app, 'GamedayInfraCdkStack');
 const gameECSStack = new GamedayECSCdkStack(app, 'GamedayECSCdkStack', {
-    vpc: gameInfraStack.vpc
+    vpc: gameInfraStack.vpc,
+    ecsSG: gameInfraStack.ecsSG,
 });
 
 gameECSStack.addDependency(gameInfraStack, 'infra');
