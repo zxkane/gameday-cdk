@@ -9,6 +9,7 @@ export class GamedayInfraCdkStack extends cdk.Stack {
   
   readonly vpc: ec2.IVpc;
   readonly ecsSG: ec2.ISecurityGroup;
+  readonly db: rds.IDatabaseCluster;
 
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -75,7 +76,7 @@ export class GamedayInfraCdkStack extends cdk.Stack {
     // create Aurora cluster
     const masterUser = 'admin'
     const ec2InstanceType = ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL)
-    const cluster = new rds.DatabaseCluster(this, 'GameCluster', {
+    const cluster = this.db = new rds.DatabaseCluster(this, 'GameCluster', {
       engine: rds.DatabaseClusterEngine.AURORA_MYSQL,
       masterUser: {
           username: masterUser

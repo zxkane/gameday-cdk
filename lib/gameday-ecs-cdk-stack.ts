@@ -3,10 +3,15 @@ import ec2 = require("@aws-cdk/aws-ec2");
 import { GamedayInfraCdkStack } from './gameday-infra-cdk-stack';
 import ecs = require('@aws-cdk/aws-ecs');
 import autoscaling = require('@aws-cdk/aws-autoscaling');
+import iam = require('@aws-cdk/aws-iam');
+import ecr = require('@aws-cdk/aws-ecr');
+import rds = require("@aws-cdk/aws-rds");
+import s3 = require("@aws-cdk/aws-s3");
 
 interface ECSStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   ecsSG: ec2.ISecurityGroup;
+  db: rds.IDatabaseCluster;
 }
 
 export class GamedayECSCdkStack extends cdk.Stack {
@@ -32,5 +37,82 @@ export class GamedayECSCdkStack extends cdk.Stack {
     asg.addSecurityGroup(props.ecsSG);
 
     cluster.addAutoScalingGroup(asg);
+
+    // create S3 bucket for log
+    const bucket = new s3.Bucket(this, 'GameLogBucket', {
+      encryption: s3.BucketEncryption.KMS
+    });
+
+    // create container role and excutor role
+    const executorRole = new iam.Role(this, 'GamedayExecutorRole', {
+      roleName: 'GamedayECSExecutorRole',
+      assumedBy: new iam.CompositePrincipal( 
+        new iam.ServicePrincipal('ecs-tasks.amazonaws.com')),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
+      ]
+    });
+
+    const logPolicy = new iam.PolicyDocument();
+    logPolicy.addStatements(new iam.PolicyStatement({
+      actions: [
+        'logs:CreateLogStream',
+        'logs:PutLogEvents'
+      ],
+      effect: iam.Effect.ALLOW,
+      resources: [
+        '*'
+      ]
+    }));
+    const containerRole = new iam.Role(this, 'GamedayContainerRole', {
+      roleName: 'GamedayContainerRole',
+      assumedBy: new iam.CompositePrincipal( 
+        new iam.ServicePrincipal('ecs-tasks.amazonaws.com')),
+      inlinePolicies: {
+        log: logPolicy
+      }
+    });
+
+    bucket.grantPut(containerRole);
+
+    // create a task definition with CloudWatch Logs
+    const logging = new ecs.AwsLogDriver({
+      streamPrefix: "gameday",
+    })
+    // create task definition of ECS
+    const taskDef = new ecs.Ec2TaskDefinition(this, "GamedayTaskDefinition", {
+      taskRole: containerRole,
+      executionRole: executorRole,
+      networkMode: ecs.NetworkMode.BRIDGE
+    });
+    
+    const container = taskDef.addContainer("GamedayContainer", {
+      image: ecs.ContainerImage.fromEcrRepository(ecr.Repository.fromRepositoryArn(this, 'Gameday',
+        this.node.tryGetContext('ecrRepoARN')), this.node.tryGetContext('imageTag')),
+      memoryLimitMiB: 1024,
+      environment: {
+        bucket: bucket.bucketName,
+        endpoint: props.db.clusterEndpoint.socketAddress,
+        dbname: 'gameday',
+        username: '',
+        password: ''
+      },
+      logging,
+    });
+    container.addPortMappings({
+      containerPort: 80,
+      hostPort: 32769,
+      protocol: ecs.Protocol.TCP
+    }, {
+      containerPort: 8080,
+      hostPort: 8888,
+      protocol: ecs.Protocol.TCP 
+    });
+
+    // Instantiate ECS Service with just cluster and image
+    new ecs.Ec2Service(this, "GamedayService", {
+      cluster,
+      taskDefinition: taskDef
+    });
   }
 }
