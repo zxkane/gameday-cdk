@@ -9,6 +9,7 @@ const gameInfraStack = new GamedayInfraCdkStack(app, 'GamedayInfraCdkStack');
 const gameECSStack = new GamedayECSCdkStack(app, 'GamedayECSCdkStack', {
     vpc: gameInfraStack.vpc,
     ecsSG: gameInfraStack.ecsSG,
+    albSG: gameInfraStack.albSG,
     db: gameInfraStack.db
 });
 

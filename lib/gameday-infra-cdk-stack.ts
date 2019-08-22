@@ -9,6 +9,7 @@ export class GamedayInfraCdkStack extends cdk.Stack {
   
   readonly vpc: ec2.IVpc;
   readonly ecsSG: ec2.ISecurityGroup;
+  readonly albSG: ec2.ISecurityGroup;
   readonly db: rds.IDatabaseCluster;
 
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -37,7 +38,7 @@ export class GamedayInfraCdkStack extends cdk.Stack {
 
     // create SecurityGroup
     // SecurityGroup 0 for ELB allow 80 from anywhere
-    const sg0 = new SecurityGroup(this, "SG0", {
+    const sg0 = this.albSG = new SecurityGroup(this, "SG0", {
       vpc: this.vpc,
       allowAllOutbound: true,
       description: "SG_for_gameday_ELB",

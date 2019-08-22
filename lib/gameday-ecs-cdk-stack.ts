@@ -7,10 +7,12 @@ import iam = require('@aws-cdk/aws-iam');
 import ecr = require('@aws-cdk/aws-ecr');
 import rds = require("@aws-cdk/aws-rds");
 import s3 = require("@aws-cdk/aws-s3");
+import elbv2 = require('@aws-cdk/aws-elasticloadbalancingv2');
 
 interface ECSStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   ecsSG: ec2.ISecurityGroup;
+  albSG: ec2.ISecurityGroup;
   db: rds.IDatabaseCluster;
 }
 
@@ -86,6 +88,7 @@ export class GamedayECSCdkStack extends cdk.Stack {
       networkMode: ecs.NetworkMode.BRIDGE
     });
     
+    const backendPort = 32769;
     const container = taskDef.addContainer("GamedayContainer", {
       image: ecs.ContainerImage.fromEcrRepository(ecr.Repository.fromRepositoryArn(this, 'Gameday',
         this.node.tryGetContext('ecrRepoARN')), this.node.tryGetContext('imageTag')),
@@ -101,7 +104,7 @@ export class GamedayECSCdkStack extends cdk.Stack {
     });
     container.addPortMappings({
       containerPort: 80,
-      hostPort: 32769,
+      hostPort: backendPort,
       protocol: ecs.Protocol.TCP
     }, {
       containerPort: 8080,
@@ -114,5 +117,37 @@ export class GamedayECSCdkStack extends cdk.Stack {
       cluster,
       taskDefinition: taskDef
     });
+
+    // Create the load balancer in a VPC. 'internetFacing' is 'false'
+    // by default, which creates an internal load balancer.
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'GameALB', {
+      vpc: props.vpc,
+      internetFacing: true,
+    });
+
+    // Add a listener and open up the load balancer's security group
+    // to the world. 'open' is the default, set this to 'false'
+    // and use `listener.connections` if you want to be selective
+    // about who can access the listener.
+    const listener = alb.addListener('Http', {
+      port: 80,
+      open: true,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+    });
+
+    // Create an AutoScaling group and add it as a load balancing
+    // target to the listener.
+    listener.addTargets('GameContainers', {
+      port: backendPort,
+      protocol: elbv2.ApplicationProtocol.HTTP, 
+      healthCheck: {
+
+      },
+      targets: [
+        asg
+      ]
+    });
+
+    
   }
 }
