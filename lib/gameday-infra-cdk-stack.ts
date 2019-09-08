@@ -77,6 +77,13 @@ export class GamedayInfraCdkStack extends cdk.Stack {
     // create Aurora cluster
     const masterUser = 'admin'
     const ec2InstanceType = ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL)
+    const parameterGroup = new rds.ClusterParameterGroup(this, 'GameAuroraPG', {
+      family: 'aurora-mysql5.7',
+      parameters: {
+        server_audit_logging: '1',
+        server_audit_events: 'QUERY_DML'
+      },
+    });
     const cluster = this.db = new rds.DatabaseCluster(this, 'GameCluster', {
       engine: rds.DatabaseClusterEngine.AURORA_MYSQL,
       masterUser: {
@@ -91,7 +98,7 @@ export class GamedayInfraCdkStack extends cdk.Stack {
           securityGroup: sg2,
           vpc: this.vpc
       },
-      parameterGroup: rds.ParameterGroup.fromParameterGroupName(this, 'mysql5.7', 'default.aurora-mysql5.7'),
+      parameterGroup,
       instances: 2
     });
 
