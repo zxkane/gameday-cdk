@@ -10,7 +10,7 @@ const gameECSStack = new GamedayECSCdkStack(app, 'GamedayECSCdkStack', {
     vpc: gameInfraStack.vpc,
     ecsSG: gameInfraStack.ecsSG,
     albSG: gameInfraStack.albSG,
-    db: gameInfraStack.db
+    dbEndpoint: gameInfraStack.dbEndpoint
 });
 
 gameECSStack.addDependency(gameInfraStack, 'infra');

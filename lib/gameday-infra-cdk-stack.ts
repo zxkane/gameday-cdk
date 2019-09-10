@@ -10,7 +10,7 @@ export class GamedayInfraCdkStack extends cdk.Stack {
   readonly vpc: ec2.IVpc;
   readonly ecsSG: ec2.ISecurityGroup;
   readonly albSG: ec2.ISecurityGroup;
-  readonly db: rds.IDatabaseCluster;
+  readonly dbEndpoint: string;
 
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -75,32 +75,67 @@ export class GamedayInfraCdkStack extends cdk.Stack {
     sg3.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'ssh port', true);
 
     // create Aurora cluster
-    const masterUser = 'admin'
-    const ec2InstanceType = ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL)
-    const parameterGroup = new rds.ClusterParameterGroup(this, 'GameAuroraPG', {
+    const masterUser = 'admin';
+    const ec2InstanceType = ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL);
+    
+    const dbclsterpar = new rds.CfnDBClusterParameterGroup(this, 'GameAuroraPG', {
+      description: 'parameter group of gameday rds cluster',
       family: 'aurora-mysql5.7',
       parameters: {
         server_audit_logging: '1',
-        server_audit_events: 'QUERY_DML'
+        server_audit_events: 'QUERY_DML',
+        server_audit_logs_upload: '1',
+        server_audit_incl_users: [masterUser].join(',')
       },
-    });
-    const cluster = this.db = new rds.DatabaseCluster(this, 'GameCluster', {
-      engine: rds.DatabaseClusterEngine.AURORA_MYSQL,
-      masterUser: {
-          username: masterUser
-      },
-      defaultDatabaseName: 'gameday',
-      instanceProps: {
-          instanceType: ec2InstanceType,
-          vpcSubnets: {
-              subnetType: ec2.SubnetType.PRIVATE,
-          },
-          securityGroup: sg2,
-          vpc: this.vpc
-      },
-      parameterGroup,
-      instances: 2
     });
 
+    const rdssubnet = new rds.CfnDBSubnetGroup(this, 'GameAuroraSubnetGroup', {
+      dbSubnetGroupDescription: 'subnet group of game rds cluster',
+      subnetIds: this.vpc.privateSubnets.map(function(subnet) {
+        return subnet.subnetId;
+      }),
+    });
+
+    let secret = new rds.DatabaseSecret(this, 'Secret', {
+      username: masterUser,
+    });
+
+    const dbcluster = new rds.CfnDBCluster(this, 'GameCluster', {
+      engine: rds.DatabaseClusterEngine.AURORA_MYSQL.name,
+      availabilityZones: this.vpc.availabilityZones,
+      databaseName: 'gameday',
+      dbClusterParameterGroupName: dbclsterpar.ref,
+      dbSubnetGroupName: rdssubnet.ref,
+      masterUsername: masterUser, 
+      masterUserPassword: secret.secretValueFromJson('password').toString(),
+      port: 3306,
+      vpcSecurityGroupIds: [
+        sg2.securityGroupId
+      ],
+      enableCloudwatchLogsExports: [
+        'audit'
+      ],
+    });
+    dbcluster.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY, {
+      applyToUpdateReplacePolicy: true
+    });
+
+    const instanceCount = 1;
+    for (let i = 0; i < instanceCount; i++) {
+      const instanceIdentifier = 'GameInstance' + (i + 1);
+      const instance = new rds.CfnDBInstance(this, instanceIdentifier, {
+        engine: dbcluster.engine,
+        dbClusterIdentifier: dbcluster.ref,
+        dbInstanceIdentifier: instanceIdentifier,
+        dbInstanceClass: 'db.' + ec2InstanceType.toString(),    //'db.t2.small',
+        dbSubnetGroupName: rdssubnet.ref,
+        publiclyAccessible: false
+      });
+      instance.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY, {
+        applyToUpdateReplacePolicy: true
+      });
+    };
+
+    this.dbEndpoint = `${dbcluster.attrEndpointAddress}:${dbcluster.attrEndpointPort}`;
   }
 }

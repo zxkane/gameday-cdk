@@ -13,7 +13,7 @@ interface ECSStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   ecsSG: ec2.ISecurityGroup;
   albSG: ec2.ISecurityGroup;
-  db: rds.IDatabaseCluster;
+  dbEndpoint: string;
 }
 
 export class GamedayECSCdkStack extends cdk.Stack {
@@ -95,7 +95,7 @@ export class GamedayECSCdkStack extends cdk.Stack {
       memoryLimitMiB: 1024,
       environment: {
         bucket: bucket.bucketName,
-        endpoint: props.db.clusterEndpoint.socketAddress,
+        endpoint: props.dbEndpoint,
         dbname: 'gameday',
         username: '',
         password: ''
